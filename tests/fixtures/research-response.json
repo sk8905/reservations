@@ -1,0 +1,18 @@
+{
+  "_note": "Shape of a Messages API response with web search. URLs, titles and facts are the real findings for Bouchon Racine gathered on 2026-11-05; the fabricated example.com source must be rejected by the validator.",
+  "stop_reason": "end_turn",
+  "content": [
+    { "type": "server_tool_use", "id": "srvtoolu_1", "name": "web_search", "input": { "query": "Bouchon Racine London reservations open days in advance" } },
+    { "type": "web_search_tool_result", "tool_use_id": "srvtoolu_1", "content": [
+      { "type": "web_search_result", "url": "https://travelsort.com/bouchon-racine-london-review/", "title": "Bouchon Racine London Review" },
+      { "type": "web_search_result", "url": "https://mapstr.com/place/cE0kbi0WwY", "title": "mapstr place model" },
+      { "type": "web_search_result", "url": "https://www.opentable.co.uk/r/bouchon-racine-london", "title": "bouchon racine london" },
+      { "type": "web_search_result", "url": "https://londontheinside.com/?p=249941", "title": "London on the Inside" }
+    ] },
+    { "type": "server_tool_use", "id": "srvtoolu_2", "name": "web_search", "input": { "query": "Bouchon Racine Farringdon phone number" } },
+    { "type": "web_search_tool_result", "tool_use_id": "srvtoolu_2", "content": [
+      { "type": "web_search_result", "url": "https://jancisrobinson.com/articles/henry-harris-back-saddle", "title": "henry harris back saddle" }
+    ] },
+    { "type": "text", "text": "Here is what I found.\n\n```json\n{\n  \"name\": \"Bouchon Racine\",\n  \"area\": {\"value\": \"Farringdon, London\", \"sources\": [\"https://travelsort.com/bouchon-racine-london-review/\"]},\n  \"website\": {\"value\": null, \"sources\": []},\n  \"platform\": {\"value\": \"opentable\", \"booking_url\": \"https://www.opentable.co.uk/r/bouchon-racine-london\", \"sources\": [\"https://www.opentable.co.uk/r/bouchon-racine-london\"]},\n  \"booking_window\": {\"pattern\": \"rolling\", \"days_ahead\": 30, \"months_ahead\": null, \"day_of_month\": null, \"sources\": [\"https://travelsort.com/bouchon-racine-london-review/\", \"https://mapstr.com/place/cE0kbi0WwY\"]},\n  \"release_time\": {\"value\": \"09:00\", \"sources\": [\"https://example.com/made-up\"]},\n  \"service_hours\": {\"value\": {\"tue\": [[\"18:00\",\"22:00\"]], \"wed\": [[\"18:00\",\"22:00\"]], \"thu\": [[\"18:00\",\"22:00\"]], \"fri\": [[\"18:00\",\"22:00\"]], \"sat\": [[\"18:00\",\"22:00\"]]}, \"complete\": false, \"sources\": [\"https://www.opentable.co.uk/r/bouchon-racine-london\"]},\n  \"phone\": {\"number\": \"020 7253 3368\", \"hours\": \"9–11am Tue–Sat\", \"note\": \"for cancellations and tables not shown online\", \"sources\": [\"https://mapstr.com/place/cE0kbi0WwY\", \"https://jancisrobinson.com/articles/henry-harris-back-saddle\"]},\n  \"notes\": [\"Midweek or early dinner is easier to get.\", \"The restaurant takes calls 9–11am for cancellations.\"]\n}\n```" }
+  ]
+}

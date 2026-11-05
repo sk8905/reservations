@@ -1,0 +1,31 @@
+{
+  "name": "table-planner",
+  "version": "0.1.0",
+  "description": "Read-only restaurant table planner: release dates, booking links and alerts.",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "seed:local": "node scripts/seed-local.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sk8905/reservations.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sk8905/reservations/issues"
+  },
+  "homepage": "https://github.com/sk8905/reservations#readme",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.5.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.158.0"
+  }
+}

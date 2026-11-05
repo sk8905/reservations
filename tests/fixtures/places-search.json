@@ -1,0 +1,17 @@
+{
+  "_note": "Shape of a Google Places (New) searchText response. Values are illustrative, used only to test field mapping.",
+  "places": [{
+    "id": "ChIJ-test-place-id",
+    "displayName": { "text": "Test Bistro" },
+    "formattedAddress": "1 Example Street, London",
+    "websiteUri": "https://test-bistro.example/",
+    "nationalPhoneNumber": "020 0000 0000",
+    "reservable": true,
+    "servesBreakfast": false, "servesLunch": true, "servesDinner": true,
+    "regularOpeningHours": { "periods": [
+      { "open": { "day": 2, "hour": 12, "minute": 0 }, "close": { "day": 2, "hour": 15, "minute": 0 } },
+      { "open": { "day": 2, "hour": 18, "minute": 0 }, "close": { "day": 2, "hour": 23, "minute": 0 } },
+      { "open": { "day": 6, "hour": 18, "minute": 30 }, "close": { "day": 0, "hour": 1, "minute": 0 } }
+    ] }
+  }]
+}
