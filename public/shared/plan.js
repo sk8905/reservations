@@ -172,3 +172,33 @@ export function releasedBetween(restaurant, { since, now, tz = LONDON, meals, da
   }
   return out;
 }
+
+export const notifyKey = (restaurantId, date, meal) => `${restaurantId}|${date}|${meal}`;
+
+/**
+ * The Notify-me checklist: for each wishlist restaurant, the dates in the
+ * next `range` days that are already bookable (or whose release rule is
+ * unknown), using that restaurant's saved meals/days/party. Busy dates are
+ * left out when the entry says "only dates I'm free". Dates that open later
+ * are only counted: they join the list after their release night.
+ */
+export function notifyChecklist(items, { now = Date.now(), busy = [], marks = {}, range = 30, tz = LONDON } = {}) {
+  const today = todayIn(now, tz);
+  return items.map((w) => {
+    const r = w.restaurant;
+    const slots = buildSlots({ restaurant: r, meals: w.meals, days: w.days, party: w.party, from: today, to: addDays(today, range), now, busy, tz });
+    const usable = slots.filter((s) => !(w.onlyFree && s.busy));
+    const rows = usable.filter((s) => s.status !== 'opens' && s.link)
+      .map((s) => ({ ...s, key: notifyKey(r.id, s.date, s.meal), set: !!marks[notifyKey(r.id, s.date, s.meal)] }));
+    const later = usable.filter((s) => s.status === 'opens');
+    return {
+      item: w,
+      restaurant: r,
+      noOnline: r.reservable === false,
+      rows,
+      done: rows.filter((x) => x.set).length,
+      laterCount: later.length,
+      nextOpen: later[0]?.opensAt || null,
+    };
+  });
+}

@@ -16,6 +16,11 @@ It also sends an **alert just after each new date opens** (push, email or webhoo
 and turns OpenTable / Resy **"Notify me" emails** in your Gmail into ⚡ alerts on
 the right date, with a push if you're free.
 
+**My list** keeps the restaurants you want to visit: each is re-checked monthly,
+you get a reminder on its release nights, and a **Notify-me checklist** gives a
+one-tap link to every date in the next 30 days that fits your settings, so you
+can switch on the platform's own "Notify me" for each and tick it off.
+
 **New here? Follow [SETUP.md](SETUP.md) step by step.**
 
 When you add a restaurant, the app **researches its booking rules automatically**
@@ -110,7 +115,7 @@ research key. Open <http://127.0.0.1:8787>.
 npm test
 ```
 
-39 tests use saved fixtures only (no live sites): time zones across the clocks
+45 tests use saved fixtures only (no live sites): time zones across the clocks
 change, release maths, meal/day filtering, booking links, the calendar reader
 (recurring events, exceptions, moved and cancelled events), research
 validation (a made-up source is rejected), the API, and release alerts

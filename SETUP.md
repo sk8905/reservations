@@ -105,6 +105,13 @@ In Cloudflare, put it behind **Access** so only your Google login can open it:
 
 ---
 
+## Using My list
+1. Set your usual meals, days and party on **Find**.
+2. **My list** → type a restaurant → **Add**. It's researched and saved with those settings. You can also tap **＋ Add to my list** on a restaurant card.
+3. Tap **Notify-me checklist**. For each date, tap **Open**, tap **Notify me** on OpenTable (or **Notify** on Resy), come back and tick it.
+4. Dates that aren't bookable yet join the checklist after their release night, and you get a reminder that night (with B1 set up).
+5. With inbox alerts on (B3), a freed-up table shows as ⚡ with a **Book** button.
+
 ## Updating the app later
 Nothing to do: when changes are pushed to `main`, Cloudflare rebuilds and publishes
 automatically. Your secrets and saved restaurants are kept. To watch a build:

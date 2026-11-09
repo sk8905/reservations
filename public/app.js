@@ -1,4 +1,4 @@
-import { MEALS, MEAL_ORDER, DAY_GROUPS, buildSlots, summarise, nextReleases } from './shared/plan.js';
+import { MEALS, MEAL_ORDER, DAY_GROUPS, buildSlots, summarise, nextReleases, notifyChecklist } from './shared/plan.js';
 import { addDays, todayIn, shortDate, shortDateTime, DOW_SHORT, dowOf } from './shared/tz.js';
 import { providerFor, googleMapsLink } from './shared/links.js';
 import { slotsToCsv } from './shared/csv.js';
@@ -20,6 +20,7 @@ const state = {
   busy: null, calendar: false, loadingDates: false,
   researching: false, error: null,
   plans: null, log: [], channels: [], inbox: [], preview: null,
+  wishlist: null, marks: {}, listBusy: [], adding: false,
   flash: null,
 };
 
@@ -99,6 +100,8 @@ function restaurantCard(r) {
       ${r.reservable === true ? '<span class="tag go">Takes bookings online</span>' : r.reservable === false ? '<span class="tag later">No online booking</span>' : ''}
       ${hours ? `<span class="tag">Open ${esc(hours.join(' '))}${r.hours.complete ? '' : ' (partial)'}</span>` : ''}
     </div>
+    ${onList(r.id) ? '<div class="sub" style="margin-top:6px;color:var(--go-ink);font-weight:600">✓ On my list</div>'
+      : `<button type="button" class="btn small secondary" style="margin-top:8px" data-action="add-to-list">＋ Add to my list</button>`}
     <div class="row" style="justify-content:space-between;margin-top:6px">
       <a href="#/restaurant" style="font-size:13px;font-weight:600;text-decoration:none">How we know this →</a>
       <a href="${esc(googleMapsLink(r))}" target="_blank" rel="noopener noreferrer" style="font-size:13px;font-weight:600;text-decoration:none">See on Google</a>
@@ -308,6 +311,80 @@ function inboxSection() {
   </details>`;
 }
 
+const onList = (id) => !!state.wishlist?.some((w) => w.restaurantId === id);
+const prefsText = (w) => `${w.meals.map((m) => MEALS[m].label).join(' + ')} · ${DAY_GROUPS[w.days].label} · ${w.party} ${w.party === 1 ? 'person' : 'people'}${w.onlyFree ? ' · free dates only' : ''}`;
+
+function checklist() {
+  return notifyChecklist(state.wishlist || [], { busy: state.listBusy, marks: state.marks });
+}
+
+function listScreen() {
+  if (!state.wishlist) return `<div class="head"><h1>My list</h1></div><div class="skeleton" style="height:120px"></div>`;
+  const groups = checklist();
+  const total = groups.reduce((n, g) => n + g.rows.length, 0);
+  const done = groups.reduce((n, g) => n + g.done, 0);
+  return `
+  <div class="head"><span class="eyebrow">Table Planner</span><h1>My list</h1>
+    <span class="sub">Restaurants you want to visit. Each is re-checked monthly, and you get a reminder on its release nights.</span></div>
+  <div class="stack" style="gap:8px">
+    <form class="row" data-form="list-add">
+      <label class="field grow"><span class="sr">Restaurant name</span><input name="name" placeholder="Add a restaurant" autocomplete="off"></label>
+      <button class="btn small" style="width:auto;padding:0 16px" ${state.adding ? 'disabled' : ''}>${state.adding ? 'Adding…' : 'Add'}</button>
+    </form>
+    ${state.adding ? '<div class="skeleton" style="height:64px"></div><div class="sub">Researching booking rules: 20–60 seconds.</div>' : ''}
+    ${state.error ? `<div class="error" role="alert">${esc(state.error)}</div>` : ''}
+    ${total ? `<a class="card" href="#/notify" style="text-decoration:none;color:inherit;display:block">
+      <div class="row" style="justify-content:space-between"><b style="font-size:14px">Notify-me checklist</b><span class="sub">${done} of ${total} set →</span></div>
+      <div class="progress" aria-hidden="true"><span style="width:${total ? Math.round((done / total) * 100) : 0}%"></span></div>
+    </a>` : ''}
+    ${groups.length ? groups.map((g) => {
+      const r = g.restaurant, rel = r.release;
+      const next = nextReleases(r, { meals: g.item.meals, days: g.item.days, count: 1 })[0];
+      return `<div class="card">
+        <div class="row" style="justify-content:space-between;align-items:baseline"><b style="font-size:15px">${esc(r.name)}</b><span class="sub">${esc(r.platform ? providerFor(r.platform).label : 'Platform unknown')}</span></div>
+        <div class="sub" style="margin-top:2px">${esc(prefsText(g.item))}</div>
+        <div class="tags">
+          ${g.noOnline ? '<span class="tag later">No online booking: call</span>' : `<span class="tag go">${g.rows.length} date${g.rows.length === 1 ? '' : 's'} to watch</span>`}
+          ${rel.pattern === 'rolling' ? `<span class="tag">${rel.daysAhead} days ahead</span>` : rel.pattern === 'monthly' ? `<span class="tag">Monthly release</span>` : '<span class="tag">Release rule unknown</span>'}
+          ${next ? `<span class="tag later">Next release ${esc(shortDateTime(next.opensAt))}</span>` : ''}
+        </div>
+        <div class="row" style="gap:6px;margin-top:8px">
+          <button type="button" class="btn small" data-action="open-planner" data-id="${esc(r.id)}">Dates</button>
+          <button type="button" class="btn small secondary" data-action="use-find-settings" data-id="${esc(r.id)}" title="Use the meals, days and party currently set on Find">Use Find settings</button>
+          <button type="button" class="btn small secondary" style="width:auto;padding:0 12px" data-action="remove-from-list" data-id="${esc(r.id)}" aria-label="Remove ${esc(r.name)}">✕</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="card sub">Your list is empty. Add a restaurant above, or tap <b>＋ Add to my list</b> on Find.</div>'}
+    ${state.flash ? `<div class="card" style="color:var(--go-ink)">${esc(state.flash)}</div>` : ''}
+  </div>`;
+}
+
+function notifyScreen() {
+  if (!state.wishlist) return `<div class="head"><h1>Notify-me checklist</h1></div><div class="skeleton" style="height:160px"></div>`;
+  const groups = checklist();
+  const fresh = (rid, date, meal) => state.inbox.find((a) => a.kind === 'availability' && a.restaurantId === rid && a.dates.includes(date) && (!a.meal || a.meal === meal));
+  return `
+  <div class="head"><a class="back" href="#/list">‹ My list</a><h1>Notify-me checklist</h1>
+    <span class="sub">For each date: tap <b>Open</b>, then tap <b>Notify me</b> on OpenTable (or <b>Notify</b> on Resy), come back and tick it. When a table frees up, the platform emails you${state.inbox.length ? ' and it appears here as ⚡' : ''}.</span></div>
+  ${groups.length ? groups.map((g) => `
+    <div class="section">${esc(g.restaurant.name)} · ${g.done} of ${g.rows.length} set</div>
+    <div class="list">
+      ${g.noOnline ? `<div class="sub">No online booking listed. ${g.restaurant.phone ? `Call ${esc(g.restaurant.phone.number)}.` : 'Call or walk in.'}</div>`
+        : g.rows.length ? g.rows.map((s) => {
+          const hit = fresh(g.restaurant.id, s.date, s.meal);
+          return `<div class="check-row ${s.set ? 'done' : ''}">
+            <label><input type="checkbox" data-input="notify" data-key="${esc(s.key)}" ${s.set ? 'checked' : ''}>
+              <span class="grow"><span class="when mono" style="font-weight:600">${esc(shortDate(s.date))}</span>
+              <span class="sub"> · ${esc(s.mealLabel)} ${esc(s.start)}${hit ? ` · <b style="color:var(--alert-ink)">⚡ ${esc(hit.times.join(', ') || 'table free')}</b>` : ''}</span></span></label>
+            <a class="open" href="${esc(hit?.link || s.link)}" target="_blank" rel="noopener noreferrer">${hit ? 'Book' : 'Open'}</a>
+          </div>`;
+        }).join('') : '<div class="sub">No bookable dates in the next 30 days that fit.</div>'}
+    </div>
+    ${g.laterCount ? `<div class="sub" style="margin:4px 2px 0">${g.laterCount} more date${g.laterCount === 1 ? '' : 's'} open later, the first on ${esc(shortDateTime(g.nextOpen))}. You'll get a reminder that night.</div>` : ''}
+  `).join('') : '<div class="card sub">Add restaurants to <a href="#/list">My list</a> first.</div>'}
+  <p class="notice" style="margin-top:12px">The app never taps Notify me for you: booking sites don't allow automated access, so each one is one tap by you.</p>`;
+}
+
 function tokenScreen() {
   const c = state.config;
   return `<div class="head"><span class="eyebrow">Table Planner</span><h1>Access token</h1></div>
@@ -323,11 +400,11 @@ function route() { return (location.hash.replace(/^#\/?/, '') || 'setup').split(
 
 function render() {
   const r = route();
-  const screens = { setup: setupScreen, plan: planScreen, restaurant: restaurantScreen, alerts: alertsScreen, token: tokenScreen };
+  const screens = { setup: setupScreen, plan: planScreen, restaurant: restaurantScreen, alerts: alertsScreen, list: listScreen, notify: notifyScreen, token: tokenScreen };
   app.innerHTML = (screens[r] || setupScreen)();
   for (const a of document.querySelectorAll('.tabs a')) {
     const tab = a.dataset.tab;
-    const current = tab === r || (tab === 'plan' && r === 'restaurant');
+    const current = tab === r || (tab === 'plan' && r === 'restaurant') || (tab === 'list' && r === 'notify');
     if (current) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
   }
 }
@@ -339,6 +416,22 @@ async function onRoute() {
   window.scrollTo(0, 0);
   if (r === 'plan' && state.restaurant) { await loadInbox(); await loadBusy(); }
   if (r === 'alerts') await loadPlans();
+  if (r === 'list' || r === 'notify') { await Promise.all([loadWishlist(), loadInbox(), loadListBusy()]); render(); }
+}
+
+async function loadWishlist() {
+  try { const d = await api('/api/wishlist'); state.wishlist = d.items; state.marks = d.notify; } catch (e) { state.wishlist = state.wishlist || []; state.error = e.message; }
+}
+
+async function loadListBusy() {
+  if (!state.config?.features?.calendar) { state.listBusy = []; return; }
+  try { const t = todayIn(); state.listBusy = (await api(`/api/busy?from=${t}&to=${addDays(t, 31)}`)).busy; } catch { state.listBusy = []; }
+}
+
+async function addToList(restaurantId) {
+  const q = state.query;
+  await api('/api/wishlist', { method: 'POST', body: { restaurantId, meals: q.meals, days: q.days, party: q.party, onlyFree: q.onlyFree && !!state.config?.features?.calendar } });
+  await loadWishlist();
 }
 
 async function loadBusy() {
@@ -402,6 +495,12 @@ app.addEventListener('change', (e) => {
   const k = e.target.dataset.input;
   if (k === 'range') { state.query.range = Number(e.target.value); saveQuery(); }
   if (k === 'onlyFree') { state.query.onlyFree = e.target.checked; saveQuery(); }
+  if (k === 'notify') {
+    const key = e.target.dataset.key, set = e.target.checked;
+    if (set) state.marks[key] = new Date().toISOString(); else delete state.marks[key];
+    render();
+    api('/api/notify', { method: 'PUT', body: { key, set } }).then((d) => { state.marks = d.notify; }).catch((err) => { state.error = err.message; render(); });
+  }
 });
 
 app.addEventListener('submit', async (e) => {
@@ -409,6 +508,15 @@ app.addEventListener('submit', async (e) => {
   const f = e.target.dataset.form;
   const data = Object.fromEntries(new FormData(e.target));
   if (f === 'lookup' && data.name.trim()) research(data.name.trim());
+  if (f === 'list-add' && data.name.trim()) {
+    state.adding = true; state.error = null; state.flash = null; render();
+    try {
+      const res = await api('/api/research', { method: 'POST', body: { name: data.name.trim(), city: state.city } });
+      await addToList(res.restaurant.id);
+      state.flash = `Added ${res.restaurant.name}, using your Find settings (${prefsText(state.wishlist.find((w) => w.restaurantId === res.restaurant.id))}).`;
+    } catch (err) { state.error = err.message; }
+    state.adding = false; return render();
+  }
   if (f === 'token') {
     state.token = data.token.trim(); ls.set('tp.token', state.token);
     await boot(); location.hash = '#/';
@@ -450,6 +558,23 @@ app.addEventListener('click', async (e) => {
   if (a === 'open-recent') {
     try { setRestaurant((await api(`/api/restaurants/${el.dataset.id}`)).restaurant); } catch (err) { state.error = err.message; }
     return render();
+  }
+  if (a === 'add-to-list') {
+    try { await addToList(state.restaurant.id); } catch (err) { state.error = err.message; }
+    return render();
+  }
+  if (a === 'remove-from-list') {
+    await api(`/api/wishlist/${el.dataset.id}`, { method: 'DELETE' }).catch(() => {});
+    await loadWishlist(); return render();
+  }
+  if (a === 'use-find-settings') {
+    try { await addToList(el.dataset.id); state.flash = 'Updated to your current Find settings.'; } catch (err) { state.error = err.message; }
+    return render();
+  }
+  if (a === 'open-planner') {
+    const w = state.wishlist.find((x) => x.restaurantId === el.dataset.id);
+    if (w) { setRestaurant(w.restaurant); Object.assign(q, { meals: w.meals, days: w.days, party: w.party }); saveQuery(); }
+    location.hash = '#/plan'; return;
   }
   if (a === 'recheck') { await research(state.restaurant.name, true); return; }
   if (a === 'show-correct') { state.correcting = !state.correcting; return render(); }
@@ -500,6 +625,7 @@ async function boot() {
     state.recent = (await api('/api/restaurants')).restaurants;
     const last = ls.get('tp.restaurant', null);
     if (last && !state.restaurant) state.restaurant = (await api(`/api/restaurants/${last}`)).restaurant;
+    await loadWishlist();
   } catch { /* first run */ }
   if (!state.config.features.calendar) state.query.onlyFree = false;
 }

@@ -41,6 +41,10 @@ export const store = (kv) => ({
     const log = (await kv.get('alerts:log', 'json')) || [];
     await kv.put('alerts:log', JSON.stringify([entry, ...log].slice(0, 20)));
   },
+  wishlist: async () => (await kv.get('wishlist', 'json')) || [],
+  saveWishlist: (list) => kv.put('wishlist', JSON.stringify(list)),
+  notifyMarks: async () => (await kv.get('notify', 'json')) || {},
+  saveNotifyMarks: (marks) => kv.put('notify', JSON.stringify(marks)),
   inbox: async () => (await kv.get('inbox', 'json')) || [],
   async addInbox(alert) {
     const list = (await kv.get('inbox', 'json')) || [];
@@ -87,8 +91,12 @@ export async function runAlerts(env, { now = Date.now(), fetchImpl = fetch } = {
   const last = await s.lastRun();
   const since = Math.max(last ?? now - 3600000, now - 6 * 3600000);
   const plans = await s.plans();
+  // Wishlist restaurants get release-night reminders too, unless a plan
+  // already covers the same restaurant.
+  const wish = (await s.wishlist()).filter((w) => !plans.some((p) => p.restaurantId === w.restaurantId))
+    .map((w) => ({ ...w, id: `w-${w.restaurantId}`, wishlist: true }));
   const sent = [];
-  for (const plan of plans) {
+  for (const plan of [...plans, ...wish]) {
     if (plan.until && todayIn(now) > plan.until) continue;
     const r = await s.profile(plan.restaurantId);
     if (!r) continue;
@@ -106,7 +114,7 @@ export async function runAlerts(env, { now = Date.now(), fetchImpl = fetch } = {
     const lines = fresh.map((x) => `${shortDate(x.date)} · ${MEALS[x.meal].label} ${x.start}–${x.end} · ${plan.party} people`);
     const msg = {
       title: `Bookings open: ${r.name}`,
-      body: `Now bookable on ${providerFor(r.platform).label}:\n${lines.join('\n')}`,
+      body: `Now bookable on ${providerFor(r.platform).label}:\n${lines.join('\n')}${plan.wishlist ? '\nBook now, or open it and tap Notify me.' : ''}`,
       url: fresh[0].link,
     };
     const results = await notify(env, msg, fetchImpl);
@@ -119,6 +127,34 @@ export async function runAlerts(env, { now = Date.now(), fetchImpl = fetch } = {
   }
   await s.setLastRun(now);
   return sent;
+}
+
+// ---------- research ----------
+/** Research a restaurant, enrich it from Google Places if set up, and save it. */
+export async function researchAndSave(env, { name, city, place = null }, { research, fetchImpl = fetch } = {}) {
+  const run = research || ((args) => runResearch(env, { ...args, fetchImpl }));
+  let profile = await run({ name, city });
+  if (!place && env.GOOGLE_PLACES_API_KEY) {
+    const results = await searchPlaces(name, { apiKey: env.GOOGLE_PLACES_API_KEY, city, fetchImpl }).catch(() => []);
+    place = bestMatch(name, results);
+  }
+  if (place) profile = mergePlace(profile, place);
+  const s = store(env.PLANNER);
+  await s.saveProfile(profile);
+  return s.profile(profile.id);
+}
+
+/** Re-check the stalest wishlist restaurant if it's over 30 days old (one per run). */
+export async function refreshStale(env, { now = Date.now(), research, fetchImpl = fetch } = {}) {
+  if (!research && !researchProvider(env)) return null;
+  const s = store(env.PLANNER);
+  let oldest = null;
+  for (const w of await s.wishlist()) {
+    const p = await s.profile(w.restaurantId);
+    if (p && now - Date.parse(p.checkedAt) > RESEARCH_MAX_AGE_MS && (!oldest || p.checkedAt < oldest.checkedAt)) oldest = p;
+  }
+  if (!oldest) return null;
+  return researchAndSave(env, { name: oldest.name, city: oldest.city || 'London' }, { research, fetchImpl });
 }
 
 // ---------- inbox alerts ----------
@@ -251,15 +287,8 @@ export async function handleApi(request, env, deps = {}) {
         if (p && Date.now() - Date.parse(p.checkedAt) < RESEARCH_MAX_AGE_MS) return json({ restaurant: p, cached: true });
       }
       if (!researchProvider(env) && !deps.research) return fail(503, 'Research needs the MISTRAL_API_KEY secret (Cloudflare → Settings → Variables and Secrets).');
-      let profile = await research({ name, city });
-      let place = b.place || null;
-      if (!place && env.GOOGLE_PLACES_API_KEY) {
-        const results = await searchPlaces(name, { apiKey: env.GOOGLE_PLACES_API_KEY, city, fetchImpl }).catch(() => []);
-        place = bestMatch(name, results);
-      }
-      if (place) profile = mergePlace(profile, place);
-      await s.saveProfile(profile);
-      return json({ restaurant: await s.profile(profile.id), cached: false });
+      const restaurant = await researchAndSave(env, { name, city, place: b.place || null }, { research, fetchImpl });
+      return json({ restaurant, cached: false });
     }
 
     if (path === '/api/busy' && method === 'GET') {
@@ -292,6 +321,37 @@ export async function handleApi(request, env, deps = {}) {
       return json({ ok: true });
     }
 
+    if (path === '/api/wishlist' && method === 'GET') {
+      const list = await s.wishlist();
+      const items = await Promise.all(list.map(async (w) => ({ ...w, restaurant: await s.profile(w.restaurantId) })));
+      return json({ items: items.filter((x) => x.restaurant), notify: await s.notifyMarks() });
+    }
+    if (path === '/api/wishlist' && method === 'POST') {
+      const b = await request.json();
+      const item = cleanPlan({ ...b, meals: b.meals?.length ? b.meals : ['dinner'] });
+      if (!item) return fail(400, 'restaurantId required');
+      if (!(await s.profile(item.restaurantId))) return fail(404, 'Unknown restaurant');
+      const list = (await s.wishlist()).filter((w) => w.restaurantId !== item.restaurantId);
+      const saved = { ...item, addedAt: new Date().toISOString() };
+      await s.saveWishlist([...list, saved].slice(0, 30));
+      return json({ item: saved });
+    }
+    m = /^\/api\/wishlist\/([a-z0-9-]+)$/.exec(path);
+    if (m && method === 'DELETE') {
+      await s.saveWishlist((await s.wishlist()).filter((w) => w.restaurantId !== m[1]));
+      return json({ ok: true });
+    }
+    if (path === '/api/notify' && method === 'PUT') {
+      const b = await request.json();
+      const key = String(b.key || '');
+      if (!/^[a-z0-9-]+\|\d{4}-\d{2}-\d{2}\|(breakfast|lunch|dinner)$/.test(key)) return fail(400, 'bad key');
+      const today = todayIn();
+      const marks = Object.fromEntries(Object.entries(await s.notifyMarks()).filter(([k]) => k.split('|')[1] >= today));
+      if (b.set) marks[key] = new Date().toISOString(); else delete marks[key];
+      await s.saveNotifyMarks(marks);
+      return json({ notify: marks });
+    }
+
     if (path === '/api/inbox' && method === 'POST') {
       return json(await ingestEmail(env, await request.json(), { fetchImpl }));
     }
@@ -320,6 +380,7 @@ export default {
     return env.ASSETS.fetch(request);
   },
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runAlerts(env, { now: event.scheduledTime || Date.now() }));
+    const now = event.scheduledTime || Date.now();
+    ctx.waitUntil(runAlerts(env, { now }).then(() => refreshStale(env, { now })).catch((e) => console.error('scheduled', e)));
   },
 };
