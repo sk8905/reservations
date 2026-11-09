@@ -101,7 +101,7 @@ npm run dev
 ```
 
 `seed:local` loads Bouchon Racine's researched profile (from
-`tests/fixtures/research-response.json`) so you can try the app without an
+`tests/fixtures/research-response.json`) so you can try the app without a
 research key. Open <http://127.0.0.1:8787>.
 
 ## Tests
