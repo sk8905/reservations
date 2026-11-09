@@ -19,7 +19,7 @@ const state = {
   name: '', city: 'London', suggestions: [], selectedPlace: null,
   busy: null, calendar: false, loadingDates: false,
   researching: false, error: null,
-  plans: null, log: [], channels: [],
+  plans: null, log: [], channels: [], inbox: [], preview: null,
   flash: null,
 };
 
@@ -138,6 +138,7 @@ function planScreen() {
     </div>
     <span class="sub" style="margin-top:4px">Booking window: ${esc(sum.window)}${r.release.timeEstimated && r.release.pattern !== 'unknown' ? ' · release time estimated' : ''}${sum.next ? ` · next release ${esc(shortDateTime(sum.next.opensAt))} (for ${esc(sum.next.label)})` : ''}</span>
   </div>
+  ${slots.some(alertFor) ? `<div class="card" style="margin-top:6px;border:2px solid var(--alert);color:var(--alert-ink);font-size:13px;font-weight:600">⚡ ${slots.filter(alertFor).length} table alert${slots.filter(alertFor).length > 1 ? 's' : ''} from your inbox in the last 24 hours. Book fast: they go quickly.</div>` : ''}
   ${slots.length ? [...weeks].map(([monday, list]) => `
     <div class="section">Week of ${esc(shortDate(monday).slice(4))}</div>
     ${list.map(slotRow).join('')}`).join('') : `<div class="card">No ${esc(mealsTxt.toLowerCase())} slots in this range${r.hours?.complete ? ' — the restaurant is closed then' : ''}.</div>`}
@@ -155,9 +156,30 @@ function planScreen() {
   <p class="notice" style="margin-top:10px">${r.reservable === false ? 'Google lists no online reservations for this restaurant.' : `Check opens ${esc(providerFor(r.platform).label)} with the date and party filled in; live times are shown there.`} The map pin opens Google Maps, where "Reserve a table" may show more times (pick the date there). This app never books or holds tables.</p>`;
 }
 
+const ALERT_FRESH_MS = 24 * 3600000;
+function alertFor(s) {
+  return state.inbox.find((a) => a.kind === 'availability' && a.restaurantId === state.restaurant?.id
+    && a.dates.includes(s.date) && (!a.meal || a.meal === s.meal)
+    && Date.now() - Date.parse(a.receivedAt) < ALERT_FRESH_MS);
+}
+function ago(iso) {
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return mins < 60 ? `${Math.max(1, mins)} min ago` : `${Math.round(mins / 60)} h ago`;
+}
+const PLATFORM_NAMES = { opentable: 'OpenTable', resy: 'Resy', sevenrooms: 'SevenRooms', tock: 'Tock', designmynight: 'DesignMyNight', deliveroo: 'Deliveroo' };
+
 function slotRow(s) {
   const [, , dd] = s.date.split('-');
   let cls = s.status, title, sub, cta = 'Check';
+  const hit = alertFor(s);
+  if (hit && !(s.busy && state.query.onlyFree)) {
+    return `<div class="slot alert">
+    <div class="day"><small>${DOW_SHORT[s.dow]}</small><b>${Number(dd)}</b></div>
+    <div class="what"><b>⚡ Table ${hit.times.length ? 'at ' + esc(hit.times.join(', ')) : 'free'}${hit.party ? ' for ' + hit.party : ''}</b><span>${esc(PLATFORM_NAMES[hit.platform] || 'Platform')} alert · ${esc(ago(hit.receivedAt))}</span></div>
+    ${s.googleLink ? `<a class="g-btn" href="${esc(s.googleLink)}" target="_blank" rel="noopener noreferrer" aria-label="See on Google Maps"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></a>` : ''}
+    <a class="go-btn" href="${esc(hit.link || s.link || '#')}" target="_blank" rel="noopener noreferrer">Book</a>
+  </div>`;
+  }
   if (s.busy && state.query.onlyFree) {
     cls = 'busy'; title = "You're busy"; sub = `Calendar: ${s.busyTitle || 'event'}`; cta = 'Link';
   } else if (s.noOnline) {
@@ -244,6 +266,8 @@ function alertsScreen() {
     ${upcoming.length ? `<div class="section">Release nights</div><div class="list">${upcoming.map((x) => `<div>
       <span class="mono" style="width:100px;font-weight:600">${esc(shortDateTime(x.opensAt).split(', ')[0])}</span>
       <span class="grow">${esc(shortDateTime(x.opensAt).split(', ')[1])} · ${esc(x.name)}: ${esc(x.label)} opens</span></div>`).join('')}</div>` : ''}
+    <div class="section">Inbox alerts</div>
+    ${inboxSection()}
     <div class="section">Send alerts by</div>
     <div class="list">${ch.map((c) => `<div><span class="grow">${esc(c.label)}</span><span class="tag ${c.enabled ? 'go' : ''}">${c.enabled ? 'On' : 'Not set up'}</span></div>`).join('')}</div>
     <button class="btn small secondary" data-action="test-alert" ${ch.some((c) => c.enabled) ? '' : 'disabled'}>Send a test alert</button>
@@ -252,6 +276,36 @@ function alertsScreen() {
     <p class="notice"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="flex-shrink:0;margin-top:2px"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>
       Alerts go out just after each release (checked hourly). Read-only: never books, holds or cancels, and never signs in to a booking site.</p>
   </div>`;
+}
+
+function inboxSection() {
+  const recent = state.inbox.slice(0, 5);
+  const last = state.inbox[0];
+  const p = state.preview;
+  return `<div class="card stack" style="gap:8px">
+    <div class="row" style="justify-content:space-between"><b style="font-size:14px">Gmail forwarding</b>
+      <span class="tag ${last ? 'go' : ''}">${last ? `Last email ${esc(ago(last.receivedAt))}` : 'Not set up yet'}</span></div>
+    <div class="sub">Set <b>Notify me</b> on OpenTable or Resy for the dates you want. When their "table available" email arrives, a small script in your Gmail passes it here: you get a ⚡ on that date and a push if you're free. Only booking-platform emails are read.</div>
+    <ol class="sub" style="margin:0;padding-left:18px;color:var(--ink-2)">
+      <li>Tap <b>Copy script</b> (your address and token are filled in).</li>
+      <li>Open <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener noreferrer">script.google.com → New project</a>, select all, paste.</li>
+      <li>Choose <b>setup</b> in the function menu, press <b>Run</b>, and allow access.</li>
+    </ol>
+    <button class="btn small secondary" data-action="copy-script">Copy script</button>
+  </div>
+  ${recent.length ? `<div class="list">${recent.map((a) => `<div><span class="grow"><b>${esc(a.kind === 'availability' ? (a.restaurantName || 'Unmatched restaurant') : 'Ignored')}</b><br>
+    <span class="sub">${esc(a.kind === 'availability' ? [a.dates.map((d) => shortDate(d)).join(', ') || 'no date found', a.times.join(', '), a.party ? `${a.party} people` : ''].filter(Boolean).join(' · ') : a.reason)} · ${esc(ago(a.receivedAt))}</span></span></div>`).join('')}</div>` : ''}
+  <details class="card"><summary style="font-size:14px;font-weight:600;cursor:pointer">Test with a pasted email</summary>
+    <form class="stack" data-form="preview" style="gap:6px;margin-top:8px">
+      <label class="sub">From<input class="txt" name="from" value="OpenTable &lt;noreply@opentable.co.uk&gt;"></label>
+      <label class="sub">Subject<input class="txt" name="subject" placeholder="Paste the subject"></label>
+      <label class="sub">Email text<textarea class="txt" name="body" rows="5" placeholder="Paste the email body"></textarea></label>
+      <button class="btn small secondary">Check what the app reads</button>
+    </form>
+    ${p ? `<div class="sub" style="margin-top:8px;color:var(--ink-2)">${p.kind === 'availability'
+      ? `Read as a <b>table alert</b>: ${esc(p.restaurantName || 'restaurant not matched (look it up first)')} · ${esc(p.dates.map((d) => shortDate(d)).join(', ') || 'no date found')} · ${esc(p.times.join(', ') || 'no time found')} · ${p.party ? `${p.party} people` : 'party not found'}${p.link ? ' · booking link found' : ''}`
+      : `Ignored: ${esc(p.reason)}`}</div>` : ''}
+  </details>`;
 }
 
 function tokenScreen() {
@@ -283,7 +337,7 @@ async function onRoute() {
   const r = route();
   render();
   window.scrollTo(0, 0);
-  if (r === 'plan' && state.restaurant) await loadBusy();
+  if (r === 'plan' && state.restaurant) { await loadInbox(); await loadBusy(); }
   if (r === 'alerts') await loadPlans();
 }
 
@@ -299,9 +353,13 @@ async function loadBusy() {
   state.loadingDates = false; render();
 }
 
+async function loadInbox() {
+  try { state.inbox = (await api('/api/inbox')).alerts; } catch { state.inbox = []; }
+}
+
 async function loadPlans() {
   try {
-    const data = await api('/api/plans');
+    const [data] = await Promise.all([api('/api/plans'), loadInbox()]);
     state.plans = data.plans; state.log = data.log;
   } catch (e) { state.plans = []; state.error = e.message; }
   render();
@@ -354,6 +412,12 @@ app.addEventListener('submit', async (e) => {
   if (f === 'token') {
     state.token = data.token.trim(); ls.set('tp.token', state.token);
     await boot(); location.hash = '#/';
+  }
+  if (f === 'preview') {
+    try {
+      state.preview = (await api('/api/inbox/preview', { method: 'POST', body: { from: data.from, subject: data.subject, date: new Date().toISOString(), text: data.body, html: data.body } })).alert;
+    } catch (err) { state.error = err.message; }
+    return render();
   }
   if (f === 'correct') {
     try {
@@ -409,6 +473,14 @@ app.addEventListener('click', async (e) => {
   if (a === 'unwatch') {
     await api(`/api/plans/${el.dataset.id}`, { method: 'DELETE' }).catch(() => {});
     return loadPlans();
+  }
+  if (a === 'copy-script') {
+    try {
+      const src = await (await fetch('/gmail-forwarder.gs')).text();
+      await navigator.clipboard.writeText(src.replace('__APP_URL__', location.origin).replace('__APP_TOKEN__', state.token));
+      state.flash = 'Script copied, with your address and token filled in. Paste it into script.google.com (steps above).';
+    } catch { state.flash = 'Copy failed. Open /gmail-forwarder.gs and fill in the two values by hand.'; }
+    return render();
   }
   if (a === 'test-alert') {
     try {

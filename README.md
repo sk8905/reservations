@@ -12,7 +12,11 @@ it lists every candidate date with:
 - whether you're **busy** that evening (from your calendar feed)
 - a **"Takes bookings online" / "No online booking"** flag from Google Places
 
-It also sends an **alert just after each new date opens** (push, email or webhook).
+It also sends an **alert just after each new date opens** (push, email or webhook),
+and turns OpenTable / Resy **"Notify me" emails** in your Gmail into ⚡ alerts on
+the right date, with a push if you're free.
+
+**New here? Follow [SETUP.md](SETUP.md) step by step.**
 
 When you add a restaurant, the app **researches its booking rules automatically**
 (booking window, release time, platform, opening hours, phone line) using
@@ -43,6 +47,7 @@ anything that reads availability directly.
 | Restaurant research (Claude + web search) and source validation | `src/research.js`, `src/profile.js` |
 | Google Places search, opening hours and the online-booking flag (optional; matched automatically by name) | `src/places.js` |
 | Alert channels (ntfy push, Resend email, webhook) | `src/channels.js` |
+| Inbox alerts: reads forwarded "table available" emails | `src/inbox.js`, `public/gmail-forwarder.gs` |
 | API, storage (Cloudflare KV), hourly alert job | `src/worker.js` |
 | iPhone web app (4 screens) | `public/index.html`, `app.js`, `styles.css` |
 
@@ -119,7 +124,7 @@ Anthropic key. Open <http://127.0.0.1:8787>.
 npm test
 ```
 
-22 tests use saved fixtures only (no live sites): time zones across the clocks
+34 tests use saved fixtures only (no live sites): time zones across the clocks
 change, release maths, meal/day filtering, booking links, the calendar reader
 (recurring events, exceptions, moved and cancelled events), research
 validation (a made-up source is rejected), the API, and release alerts
@@ -141,9 +146,10 @@ validation (a made-up source is rejected), the API, and release alerts
   reservations, and Google's terms forbid scraping. The map pin just opens the page
   for you, and Google links can't pre-set a date.
 
-- The app can't see *live* free times or cancellations. For those, use the
-  platform's own **Notify me** feature; reading those emails from your inbox
-  into alerts is the planned next phase.
+- The app can't see *live* free times itself. Inbox alerts pass on the
+  platforms' own **Notify me** emails. The email reader is template-free and was
+  built without real alert emails to test on: check your first one with
+  **Alerts → Test with a pasted email**.
 - If a restaurant doesn't publish its release time, 00:00 UK is assumed and
   marked *estimated*.
 - Booking-link parameters for Resy, SevenRooms, Tock and DesignMyNight are

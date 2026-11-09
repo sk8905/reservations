@@ -119,6 +119,10 @@ select { max-width: 100%; height: 44px; border-radius: 10px; border: 1px solid v
 .slot.opens .what b { color: var(--later-ink); }
 .slot.opens .go-btn, .slot.unknown .go-btn { background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); }
 .slot .g-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--card); }
+.slot.alert { border: 2px solid var(--alert); padding: 5px 8px 5px 2px; }
+.slot.alert .what b { color: var(--alert-ink); }
+.slot.alert .go-btn { background: var(--alert); }
+.txt { display: block; width: 100%; margin-top: 3px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--card); padding: 8px; font-size: 15px; color: var(--ink); }
 .slot.busy { background: var(--muted-bg); }
 .slot.busy .what b, .slot.busy .day b { color: var(--ink-3); }
 .slot.busy .go-btn { background: transparent; color: var(--ink-3); border: 1px solid var(--line-strong); }

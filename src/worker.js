@@ -8,7 +8,8 @@ import { enabledChannels, notify, CHANNELS } from './channels.js';
 import { parseIcs, busyIntervals } from '../public/shared/ics.js';
 import { releasedBetween, MEALS } from '../public/shared/plan.js';
 import { addDays, shortDate, todayIn, zonedToUtc } from '../public/shared/tz.js';
-import { providerFor } from '../public/shared/links.js';
+import { providerFor, bookingLink } from '../public/shared/links.js';
+import { parseAlertEmail } from './inbox.js';
 
 const RESEARCH_MAX_AGE_MS = 30 * 86400000;
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -40,6 +41,13 @@ export const store = (kv) => ({
     const log = (await kv.get('alerts:log', 'json')) || [];
     await kv.put('alerts:log', JSON.stringify([entry, ...log].slice(0, 20)));
   },
+  inbox: async () => (await kv.get('inbox', 'json')) || [],
+  async addInbox(alert) {
+    const list = (await kv.get('inbox', 'json')) || [];
+    await kv.put('inbox', JSON.stringify([alert, ...list].slice(0, 50)));
+  },
+  seenEmail: async (id) => !!(await kv.get(`inbox:seen:${id}`)),
+  markEmail: (id) => kv.put(`inbox:seen:${id}`, '1', { expirationTtl: 30 * 86400 }),
   wasSent: async (key) => !!(await kv.get(`sent:${key}`)),
   markSent: (key) => kv.put(`sent:${key}`, '1', { expirationTtl: 400 * 86400 }),
   lastRun: async () => Number(await kv.get('alerts:lastRun')) || null,
@@ -111,6 +119,46 @@ export async function runAlerts(env, { now = Date.now(), fetchImpl = fetch } = {
   }
   await s.setLastRun(now);
   return sent;
+}
+
+// ---------- inbox alerts ----------
+function cleanEmail(b) {
+  const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+  return { id: str(b.id, 200), from: str(b.from, 300), subject: str(b.subject, 500), date: str(b.date, 40), text: str(b.text, 30000), html: str(b.html, 150000) };
+}
+
+/** Parse a forwarded email, store it, and push an alert if you're free. */
+export async function ingestEmail(env, raw, { fetchImpl = fetch, now = Date.now() } = {}) {
+  const s = store(env.PLANNER);
+  const email = cleanEmail(raw);
+  if (email.id && (await s.seenEmail(email.id))) return { duplicate: true };
+  const alert = parseAlertEmail(email, await s.index());
+  if (email.id) await s.markEmail(email.id);
+  await s.addInbox(alert);
+  if (alert.kind !== 'availability' || !alert.restaurantId) return { alert };
+  const r = await s.profile(alert.restaurantId);
+  const today = todayIn(now);
+  const dates = alert.dates.filter((d) => d >= today);
+  if (!r || !dates.length) return { alert };
+  if (!alert.link) alert.link = bookingLink(r, { date: dates[0], time: alert.times[0] || '19:00', party: alert.party || 2 });
+  const time = alert.times[0];
+  const busy = await loadBusy(env, zonedToUtc(dates[0]), zonedToUtc(addDays(dates.at(-1), 1)), fetchImpl).catch(() => null);
+  const clash = (d) => busy?.find((b) => (time
+    ? b.start < zonedToUtc(d, time) + 2 * 3600000 && b.end > zonedToUtc(d, time)
+    : b.start < zonedToUtc(addDays(d, 1)) && b.end > zonedToUtc(d, '18:00')));
+  const free = dates.filter((d) => !clash(d));
+  const label = providerFor(alert.platform === 'deliveroo' ? 'other' : alert.platform).label;
+  const lines = dates.map((d) => `${shortDate(d)} · ${alert.times.join(', ') || 'time in email'} · ${alert.party ? `${alert.party} people` : 'party in email'}${clash(d) ? ` · clash: ${clash(d).title}` : ''}`);
+  const msg = {
+    title: `Table free: ${r.name}`,
+    body: `${alert.platform === 'deliveroo' ? 'Deliveroo' : label} alert:\n${lines.join('\n')}${busy && free.length ? "\nYou're free then." : ''}`,
+    url: alert.link,
+  };
+  // Busy on every date mentioned: keep the alert in the app, skip the push.
+  const results = busy && !free.length ? [] : await notify(env, msg, fetchImpl);
+  const entry = { at: now, kind: 'inbox', restaurantId: r.id, title: msg.title, lines, url: msg.url, results, pushed: results.length > 0 };
+  await s.addLog(entry);
+  return { alert, notified: entry };
 }
 
 // ---------- API ----------
@@ -242,6 +290,16 @@ export async function handleApi(request, env, deps = {}) {
     if (m && method === 'DELETE') {
       await s.savePlans((await s.plans()).filter((p) => p.id !== m[1]));
       return json({ ok: true });
+    }
+
+    if (path === '/api/inbox' && method === 'POST') {
+      return json(await ingestEmail(env, await request.json(), { fetchImpl }));
+    }
+    if (path === '/api/inbox/preview' && method === 'POST') {
+      return json({ alert: parseAlertEmail(cleanEmail(await request.json()), await s.index()) });
+    }
+    if (path === '/api/inbox' && method === 'GET') {
+      return json({ alerts: await s.inbox() });
     }
 
     if (path === '/api/alerts/test' && method === 'POST') {
