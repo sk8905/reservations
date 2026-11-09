@@ -1,5 +1,7 @@
 # Copy to .dev.vars for local `npm run dev`. In production use `wrangler secret put <NAME>`.
 APP_TOKEN=choose-a-long-random-string
+MISTRAL_API_KEY=
+# Optional alternative to Mistral:
 ANTHROPIC_API_KEY=
 GOOGLE_PLACES_API_KEY=
 CALENDAR_ICS_URL=

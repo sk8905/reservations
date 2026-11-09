@@ -55,13 +55,26 @@ function finalText(content = []) {
   return content.filter((b) => b.type === 'text').map((b) => b.text).join('\n');
 }
 
+/** Compare URLs loosely: ignore #fragment, tracking params, trailing slash, www. */
+export function urlKey(u) {
+  try {
+    const x = new URL(u);
+    x.hash = '';
+    for (const k of [...x.searchParams.keys()]) if (/^(utm_|fbclid|gclid|ref$|ref_src$)/i.test(k)) x.searchParams.delete(k);
+    return `${x.hostname.replace(/^www\./, '').toLowerCase()}${x.pathname.replace(/\/+$/, '')}${x.search}`;
+  } catch { return null; }
+}
+
 function keepSources(list, allowed) {
+  const byKey = new Map();
+  for (const [u, title] of allowed) { const k = urlKey(u); if (k) byKey.set(k, { url: u, title }); }
   const out = [];
   const seen = new Set();
   for (const u of Array.isArray(list) ? list : []) {
-    if (typeof u !== 'string' || !allowed.has(u) || seen.has(u)) continue;
-    seen.add(u);
-    out.push({ url: u, title: allowed.get(u) || host(u) });
+    const hit = typeof u === 'string' ? byKey.get(urlKey(u)) : null;
+    if (!hit || seen.has(hit.url)) continue;
+    seen.add(hit.url);
+    out.push({ url: hit.url, title: hit.title || host(hit.url) });
   }
   return out;
 }

@@ -2,7 +2,7 @@
 // small JSON API under /api. Read-only towards booking platforms: it never
 // loads, books, holds or cancels anything on them.
 
-import { researchRestaurant } from './research.js';
+import { research as runResearch, researchProvider } from './research.js';
 import { searchPlaces, mergePlace, bestMatch } from './places.js';
 import { enabledChannels, notify, CHANNELS } from './channels.js';
 import { parseIcs, busyIntervals } from '../public/shared/ics.js';
@@ -190,7 +190,7 @@ export async function handleApi(request, env, deps = {}) {
   const path = url.pathname.replace(/\/$/, '');
   const method = request.method;
   const fetchImpl = deps.fetch || fetch;
-  const research = deps.research || researchRestaurant;
+  const research = deps.research || ((args) => runResearch(env, { ...args, fetchImpl }));
   const s = store(env.PLANNER);
 
   if (path === '/api/config' && method === 'GET') {
@@ -200,7 +200,7 @@ export async function handleApi(request, env, deps = {}) {
       tokenConfigured: !!env.APP_TOKEN,
       features: ok ? {
         places: !!env.GOOGLE_PLACES_API_KEY,
-        research: !!env.ANTHROPIC_API_KEY,
+        research: !!researchProvider(env),
         calendar: !!env.CALENDAR_ICS_URL,
       } : null,
       channels: ok ? CHANNELS.map((c) => ({ name: c.name, label: c.label, enabled: c.enabled(env) })) : null,
@@ -250,8 +250,8 @@ export async function handleApi(request, env, deps = {}) {
         const p = await s.profile(known.id);
         if (p && Date.now() - Date.parse(p.checkedAt) < RESEARCH_MAX_AGE_MS) return json({ restaurant: p, cached: true });
       }
-      if (!env.ANTHROPIC_API_KEY) return fail(503, 'Research needs the ANTHROPIC_API_KEY secret.');
-      let profile = await research({ name, city, apiKey: env.ANTHROPIC_API_KEY });
+      if (!researchProvider(env) && !deps.research) return fail(503, 'Research needs the MISTRAL_API_KEY secret (Cloudflare → Settings → Variables and Secrets).');
+      let profile = await research({ name, city });
       let place = b.place || null;
       if (!place && env.GOOGLE_PLACES_API_KEY) {
         const results = await searchPlaces(name, { apiKey: env.GOOGLE_PLACES_API_KEY, city, fetchImpl }).catch(() => []);

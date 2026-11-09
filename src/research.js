@@ -1,13 +1,13 @@
-// Researches a restaurant's booking rules on the open web using Claude with
-// the server-side web search tool. Claude reads search results only; this
-// app never loads booking-platform pages itself.
+// Research step. Mistral (src/research-mistral.js) is the default; this file
+// holds the shared prompt, the provider switch, and the optional Claude
+// provider (used only if ANTHROPIC_API_KEY is set and MISTRAL_API_KEY isn't).
 
 import Anthropic from '@anthropic-ai/sdk';
 import { normaliseProfile, searchedUrls, extractJson, finalText } from './profile.js';
 
 export const RESEARCH_MODEL = 'claude-opus-5-5';
 
-const SYSTEM = `You research how and when a restaurant releases online table bookings.
+export const RESEARCH_PROMPT = `You research how and when a restaurant releases online table bookings.
 Search the web (the restaurant's own site first, then guides, press and listings).
 Report only facts stated on pages you found in this search, and cite those exact page URLs.
 If a fact is not stated anywhere you found, use null. Never guess or infer a number.
@@ -50,7 +50,7 @@ export async function researchRestaurant({ name, city = 'London', apiKey, client
       output_config: { effort: 'medium' },
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      system: SYSTEM,
+      system: RESEARCH_PROMPT,
       tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 6, user_location: { type: 'approximate', country: 'GB', city } }],
       messages,
     });
@@ -62,4 +62,21 @@ export async function researchRestaurant({ name, city = 'London', apiKey, client
   const json = extractJson(finalText(response.content)) || extractJson(finalText(content));
   if (!json) throw new Error('Research returned no usable result.');
   return normaliseProfile(json, searchedUrls(content), { name, city, now });
+}
+
+/** Which research provider is configured: Mistral first, then Claude. */
+export function researchProvider(env) {
+  if (env.MISTRAL_API_KEY) return 'mistral';
+  if (env.ANTHROPIC_API_KEY) return 'claude';
+  return null;
+}
+
+export async function research(env, { name, city, fetchImpl }) {
+  const provider = researchProvider(env);
+  if (provider === 'mistral') {
+    const { researchWithMistral } = await import('./research-mistral.js');
+    return researchWithMistral({ name, city, apiKey: env.MISTRAL_API_KEY, model: env.MISTRAL_MODEL || undefined, fetchImpl });
+  }
+  if (provider === 'claude') return researchRestaurant({ name, city, apiKey: env.ANTHROPIC_API_KEY });
+  throw new Error('No research key set.');
 }

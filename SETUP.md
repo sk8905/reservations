@@ -1,7 +1,7 @@
 # Table Planner: what you still need to do
 
 Everything happens in a web browser, using just your **GitHub** and **Cloudflare**
-accounts (plus Google and Anthropic for some extras). Nothing to install.
+accounts (plus Mistral for restaurant research, and Google for some extras). Nothing to install.
 Part A takes about 15 minutes; each extra in Part B takes 5–10.
 
 Cloudflare builds and publishes the app straight from GitHub. After Part A,
@@ -43,10 +43,13 @@ Save it there as "Table Planner token".
 
 > Always choose **Type: Secret**, not "Text", for everything in this guide. Secrets survive future automatic deploys.
 
-### A4. Add your Anthropic API key (for researching restaurants)
-1. Go to <https://platform.claude.com/> → sign in → **Billing**: add a card and a small credit (e.g. £5).
-2. **API keys** → **Create key** → copy it.
-3. Back in Cloudflare (same screen as A3): **+ Add** → Type **Secret**, name **`ANTHROPIC_API_KEY`**, paste the key → **Deploy**.
+### A4. Add your Mistral API key (for researching restaurants)
+1. Go to <https://console.mistral.ai> → sign up or sign in.
+2. **Billing / Plans**: choose a plan. **Scale** is pay-as-you-go (add a card). The free **Experiment** plan also works for trying it out, but has low rate limits, and Mistral may use its data for training. See [pricing](https://mistral.ai/pricing).
+3. **API Keys** → **Create new key** → name it `Table Planner` → copy it (it's shown once).
+4. Back in Cloudflare (same screen as A3): **+ Add** → Type **Secret**, name **`MISTRAL_API_KEY`**, paste the key → **Deploy**.
+
+If you added `ANTHROPIC_API_KEY` earlier, you can delete it; Mistral is used whenever its key is present.
 
 ### A5. Put it on your iPhone
 1. Open your app's address (A1 step 8) in **Safari** on your iPhone.
@@ -113,7 +116,9 @@ automatically. Your secrets and saved restaurants are kept. To watch a build:
 | Build failed: name mismatch | Worker must be named exactly `table-planner` (A1) |
 | App says "Set the APP_TOKEN secret" | Do A3 (Type: **Secret**), then reload |
 | App keeps asking for the token | Re-enter exactly the token from A2 |
-| "Research needs the ANTHROPIC_API_KEY secret" | Do A4, and check you have API credit |
+| "Research needs the MISTRAL_API_KEY secret" | Do A4: name exactly `MISTRAL_API_KEY`, Type Secret, then Deploy |
+| "Mistral research failed: 401" | Key pasted incompletely; create a new key and replace it |
+| "Mistral research failed: 429" | Rate limit or no credit: wait a minute, or move to the Scale plan |
 | No test push | Topic in ntfy must match `NTFY_TOPIC` exactly |
 | Inbox alerts not arriving | In script.google.com → **Executions**, check for errors; run **setup** again |
 | A restaurant's rule looks wrong | Open it → **Correct it** |

@@ -20,7 +20,7 @@ the right date, with a push if you're free.
 
 When you add a restaurant, the app **researches its booking rules automatically**
 (booking window, release time, platform, opening hours, phone line) using
-Claude with web search. Every fact links to its source and gets a confidence
+Mistral with web search. Every fact links to its source and gets a confidence
 badge. A fact that no found page supports is never guessed: it is shown as
 *estimated* or *unknown*.
 
@@ -44,7 +44,7 @@ anything that reads availability directly.
 | Booking links per platform (OpenTable verified; Resy/SevenRooms/Tock/DesignMyNight unverified) | `public/shared/links.js` |
 | Calendar feed reader (recurring events, exceptions, free/busy) | `public/shared/ics.js` |
 | CSV export | `public/shared/csv.js` |
-| Restaurant research (Claude + web search) and source validation | `src/research.js`, `src/profile.js` |
+| Restaurant research (Mistral web search by default; Claude optional) and source validation | `src/research-mistral.js`, `src/research.js`, `src/profile.js` |
 | Google Places search, opening hours and the online-booking flag (optional; matched automatically by name) | `src/places.js` |
 | Alert channels (ntfy push, Resend email, webhook) | `src/channels.js` |
 | Inbox alerts: reads forwarded "table available" emails | `src/inbox.js`, `public/gmail-forwarder.gs` |
@@ -69,7 +69,9 @@ and Secrets** (always Type: **Secret**):
 | Secret | Needed for | Where to get it |
 |---|---|---|
 | `APP_TOKEN` | **Required.** Any long random string; you type it into the app once | Your password manager's generator (30+ characters) |
-| `ANTHROPIC_API_KEY` | Researching new restaurants | [Claude Console](https://platform.claude.com/) |
+| `MISTRAL_API_KEY` | Researching new restaurants | [Mistral console](https://console.mistral.ai) |
+| `MISTRAL_MODEL` | Optional: override the model (default `mistral-medium-latest`) | [Mistral models](https://docs.mistral.ai/getting-started/models/) |
+| `ANTHROPIC_API_KEY` | Optional alternative to Mistral; used only if `MISTRAL_API_KEY` isn't set | [Claude Console](https://platform.claude.com/) |
 | `GOOGLE_PLACES_API_KEY` | Optional: search suggestions + full opening hours | [Places API (New)](https://developers.google.com/maps/documentation/places/web-service/text-search) |
 | `CALENDAR_ICS_URL` | Optional: "only dates I'm free" | Google Calendar → Settings → your calendar → **Secret address in iCal format** ([help](https://support.google.com/calendar/answer/37648)) |
 | `NTFY_TOPIC` | Optional: iPhone push | Install [ntfy](https://ntfy.sh) and subscribe to a hard-to-guess topic name |
@@ -100,7 +102,7 @@ npm run dev
 
 `seed:local` loads Bouchon Racine's researched profile (from
 `tests/fixtures/research-response.json`) so you can try the app without an
-Anthropic key. Open <http://127.0.0.1:8787>.
+research key. Open <http://127.0.0.1:8787>.
 
 ## Tests
 
@@ -108,7 +110,7 @@ Anthropic key. Open <http://127.0.0.1:8787>.
 npm test
 ```
 
-34 tests use saved fixtures only (no live sites): time zones across the clocks
+39 tests use saved fixtures only (no live sites): time zones across the clocks
 change, release maths, meal/day filtering, booking links, the calendar reader
 (recurring events, exceptions, moved and cancelled events), research
 validation (a made-up source is rejected), the API, and release alerts
@@ -117,9 +119,9 @@ validation (a made-up source is rejected), the API, and release alerts
 ## Costs
 
 - **Cloudflare Workers + KV**: the free plan covers personal use.
-- **Claude**: one research call per new restaurant (a few web searches), plus
-  re-checks you trigger. Model `claude-opus-5-5` at medium effort, with
-  server-side fallback on refusals. See [pricing](https://platform.claude.com/docs/en/about-claude/pricing).
+- **Mistral**: one research call per new restaurant (it searches the web a few
+  times), plus re-checks you trigger. Model `mistral-medium-latest` with the
+  built-in `web_search` tool. See [pricing](https://mistral.ai/pricing).
 - **Google Places**: optional; billed per request after a monthly free allowance
   ([pricing](https://developers.google.com/maps/billing-and-pricing/pricing)).
 
