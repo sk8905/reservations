@@ -118,6 +118,7 @@ select { max-width: 100%; height: 44px; border-radius: 10px; border: 1px solid v
 .slot.bookable .what b { color: var(--go-ink); }
 .slot.opens .what b { color: var(--later-ink); }
 .slot.opens .go-btn, .slot.unknown .go-btn { background: var(--card); color: var(--ink); border: 1px solid var(--line-strong); }
+.slot .g-btn { flex-shrink: 0; width: 36px; height: 36px; border-radius: 9px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); color: var(--ink-2); background: var(--card); }
 .slot.busy { background: var(--muted-bg); }
 .slot.busy .what b, .slot.busy .day b { color: var(--ink-3); }
 .slot.busy .go-btn { background: transparent; color: var(--ink-3); border: 1px solid var(--line-strong); }

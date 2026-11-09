@@ -1,6 +1,8 @@
 // Optional Google Places (New) lookup: restaurant search suggestions and
 // opening hours. Only used when GOOGLE_PLACES_API_KEY is set.
 
+import { googleMapsLink } from '../public/shared/links.js';
+
 const FIELDS = [
   'places.id', 'places.displayName', 'places.formattedAddress', 'places.websiteUri',
   'places.regularOpeningHours', 'places.nationalPhoneNumber', 'places.reservable',
@@ -56,13 +58,32 @@ export async function searchPlaces(query, { apiKey, city = 'London', fetchImpl =
 export function mergePlace(profile, place) {
   if (!place) return profile;
   const out = { ...profile, placeId: place.placeId, address: place.address || profile.area };
+  if (place.reservable != null) {
+    out.reservable = place.reservable;
+    out.facts = [...(out.facts || profile.facts).filter((f) => f.label !== 'Online booking'), {
+      label: 'Online booking', value: place.reservable ? 'Takes reservations (Google)' : 'No reservations listed on Google: call or walk in',
+      confidence: 'high', sources: [{ url: googleMapsLink(out), title: 'Google Maps' }],
+    }];
+  }
   if (!profile.website && place.website) out.website = place.website;
   if (place.hours && (!profile.hours || profile.hours.confidence !== 'high')) {
     out.hours = { value: place.hours, complete: true, confidence: 'high', source: 'google' };
-    out.facts = [...profile.facts.filter((f) => f.label !== 'Opening hours'), {
+    out.facts = [...(out.facts || profile.facts).filter((f) => f.label !== 'Opening hours'), {
       label: 'Opening hours', value: 'From Google Maps', confidence: 'high',
-      sources: [{ url: `https://www.google.com/maps/place/?q=place_id:${place.placeId}`, title: 'Google Maps' }],
+      sources: [{ url: googleMapsLink(out), title: 'Google Maps' }],
     }];
   }
   return out;
+}
+
+const norm = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** The search result that is clearly the named restaurant, or null. */
+export function bestMatch(name, results) {
+  const want = norm(name);
+  if (!want) return null;
+  return (results || []).find((p) => {
+    const got = norm(p.name);
+    return got && (got === want || got.startsWith(want) || want.startsWith(got));
+  }) || null;
 }

@@ -7,7 +7,7 @@ import {
   LONDON, DOW_KEYS, addDays, addMonths, dowOf, eachDate, isoOf, todayIn,
   zonedToUtc, toMinutes, fromMinutes, shortDate,
 } from './tz.js';
-import { bookingLink, providerFor } from './links.js';
+import { bookingLink, googleMapsLink, providerFor } from './links.js';
 
 export const MEALS = {
   breakfast: { label: 'Breakfast', start: '08:00', end: '10:30' },
@@ -87,6 +87,8 @@ export function buildSlots({
   const chosen = MEAL_ORDER.filter((m) => meals.includes(m));
   const release = restaurant?.release;
   const platform = providerFor(restaurant?.platform).label;
+  const googleLink = googleMapsLink(restaurant);
+  const noOnline = restaurant?.reservable === false;
   const slots = [];
   for (const date of eachDate(start, end)) {
     const dow = dowOf(date);
@@ -105,8 +107,8 @@ export function buildSlots({
         start: win.start, end: win.end, hoursKnown: win.hoursKnown,
         status, opensAt: open, opensEstimated: !!release?.timeEstimated,
         busy: !!clash, busyTitle: clash?.title || null,
-        platform,
-        link: bookingLink(restaurant, { date, time: win.start, party }),
+        platform, noOnline, googleLink,
+        link: noOnline ? null : bookingLink(restaurant, { date, time: win.start, party }),
       });
     }
   }

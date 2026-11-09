@@ -66,6 +66,21 @@ export const PROVIDERS = {
   },
 };
 
+/**
+ * Link to the restaurant on Google Maps, where "Reserve a table" shows
+ * Google's own slot picker. Uses the documented Maps URLs format
+ * (https://developers.google.com/maps/documentation/urls/get-started).
+ * Google doesn't accept a date in the link, so you pick it there.
+ */
+export function googleMapsLink(restaurant) {
+  if (!restaurant?.name) return null;
+  const u = new URL('https://www.google.com/maps/search/');
+  u.searchParams.set('api', '1');
+  u.searchParams.set('query', [restaurant.name, restaurant.address || restaurant.area || restaurant.city].filter(Boolean).join(', '));
+  if (restaurant.placeId) u.searchParams.set('query_place_id', restaurant.placeId);
+  return u.toString();
+}
+
 export function detectPlatform(url) {
   if (!url) return null;
   let host;

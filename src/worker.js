@@ -3,7 +3,7 @@
 // loads, books, holds or cancels anything on them.
 
 import { researchRestaurant } from './research.js';
-import { searchPlaces, mergePlace } from './places.js';
+import { searchPlaces, mergePlace, bestMatch } from './places.js';
 import { enabledChannels, notify, CHANNELS } from './channels.js';
 import { parseIcs, busyIntervals } from '../public/shared/ics.js';
 import { releasedBetween, MEALS } from '../public/shared/plan.js';
@@ -204,7 +204,12 @@ export async function handleApi(request, env, deps = {}) {
       }
       if (!env.ANTHROPIC_API_KEY) return fail(503, 'Research needs the ANTHROPIC_API_KEY secret.');
       let profile = await research({ name, city, apiKey: env.ANTHROPIC_API_KEY });
-      if (b.place) profile = mergePlace(profile, b.place);
+      let place = b.place || null;
+      if (!place && env.GOOGLE_PLACES_API_KEY) {
+        const results = await searchPlaces(name, { apiKey: env.GOOGLE_PLACES_API_KEY, city, fetchImpl }).catch(() => []);
+        place = bestMatch(name, results);
+      }
+      if (place) profile = mergePlace(profile, place);
       await s.saveProfile(profile);
       return json({ restaurant: await s.profile(profile.id), cached: false });
     }

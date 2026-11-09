@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { zonedToUtc, addMonths, todayIn, shortDateTime, daysBetween } from '../public/shared/tz.js';
 import { opensAt, mealWindow, buildSlots, summarise, nextReleases, releasedBetween } from '../public/shared/plan.js';
-import { bookingLink, detectPlatform } from '../public/shared/links.js';
+import { bookingLink, detectPlatform, googleMapsLink } from '../public/shared/links.js';
 import { parseIcs, busyIntervals } from '../public/shared/ics.js';
 import { slotsToCsv } from '../public/shared/csv.js';
 import { normaliseProfile, searchedUrls, extractJson, finalText } from '../src/profile.js';
@@ -145,6 +145,25 @@ test('slots marked busy from the calendar', () => {
 test('CSV export', () => {
   const slots = buildSlots({ restaurant: bouchon, meals: ['dinner'], days: 'midweek', party: 2, from: '2026-11-10', to: '2026-11-10', now: NOW });
   const csv = slotsToCsv(slots).trim().split('\r\n');
-  assert.equal(csv[0], 'Date,Day,Meal,Time window,Party,Status,Opens at (UK),Platform,Direct booking link,Calendar');
-  assert.equal(csv[1], '2026-11-10,Tue,Dinner,18:30–21:30,2,Bookable now,"Sun 11 Oct, 00:00 (est.)",OpenTable,https://www.opentable.co.uk/r/bouchon-racine-london?covers=2&dateTime=2026-11-10T18%3A30,Free');
+  assert.equal(csv[0], 'Date,Day,Meal,Time window,Party,Status,Opens at (UK),Platform,Direct booking link,Google Maps,Calendar');
+  assert.equal(csv[1], '2026-11-10,Tue,Dinner,18:30–21:30,2,Bookable now,"Sun 11 Oct, 00:00 (est.)",OpenTable,https://www.opentable.co.uk/r/bouchon-racine-london?covers=2&dateTime=2026-11-10T18%3A30,https://www.google.com/maps/search/?api=1&query=Bouchon+Racine%2C+Farringdon%2C+London,Free');
+});
+
+test('Google Maps link: by place id when known, else by name and area', () => {
+  assert.equal(googleMapsLink({ name: 'Bouchon Racine', area: 'Farringdon, London' }),
+    'https://www.google.com/maps/search/?api=1&query=Bouchon+Racine%2C+Farringdon%2C+London');
+  assert.equal(googleMapsLink({ name: 'Test Bistro', address: '1 Example Street, London', placeId: 'ChIJ-x' }),
+    'https://www.google.com/maps/search/?api=1&query=Test+Bistro%2C+1+Example+Street%2C+London&query_place_id=ChIJ-x');
+  assert.equal(googleMapsLink(null), null);
+  const slot = buildSlots({ restaurant: bouchon, meals: ['dinner'], days: 'any', from: '2026-11-10', to: '2026-11-10', now: NOW })[0];
+  assert.equal(slot.googleLink, googleMapsLink(bouchon));
+});
+
+test('no online booking: slots keep the Google link but drop the booking link', () => {
+  const r = { ...bouchon, reservable: false };
+  const [slot] = buildSlots({ restaurant: r, meals: ['dinner'], days: 'any', from: '2026-11-10', to: '2026-11-10', now: NOW });
+  assert.equal(slot.noOnline, true);
+  assert.equal(slot.link, null);
+  assert.ok(slot.googleLink);
+  assert.match(slotsToCsv([slot]), /No online booking/);
 });

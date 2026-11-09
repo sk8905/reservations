@@ -1,6 +1,6 @@
 import { MEALS, MEAL_ORDER, DAY_GROUPS, buildSlots, summarise, nextReleases } from './shared/plan.js';
 import { addDays, todayIn, shortDate, shortDateTime, DOW_SHORT, dowOf } from './shared/tz.js';
-import { providerFor } from './shared/links.js';
+import { providerFor, googleMapsLink } from './shared/links.js';
 import { slotsToCsv } from './shared/csv.js';
 
 const app = document.getElementById('app');
@@ -96,9 +96,13 @@ function restaurantCard(r) {
     <div class="tags">
       <span class="tag blue">${esc(r.platform ? p.label : 'Platform unknown')}</span>
       <span class="tag ${rel.pattern === 'unknown' ? '' : 'go'}">${esc(window)}</span>
+      ${r.reservable === true ? '<span class="tag go">Takes bookings online</span>' : r.reservable === false ? '<span class="tag later">No online booking</span>' : ''}
       ${hours ? `<span class="tag">Open ${esc(hours.join(' '))}${r.hours.complete ? '' : ' (partial)'}</span>` : ''}
     </div>
-    <a href="#/restaurant" style="font-size:13px;font-weight:600;text-decoration:none;display:inline-block;margin-top:6px">How we know this →</a>
+    <div class="row" style="justify-content:space-between;margin-top:6px">
+      <a href="#/restaurant" style="font-size:13px;font-weight:600;text-decoration:none">How we know this →</a>
+      <a href="${esc(googleMapsLink(r))}" target="_blank" rel="noopener noreferrer" style="font-size:13px;font-weight:600;text-decoration:none">See on Google</a>
+    </div>
   </div>`;
 }
 
@@ -148,7 +152,7 @@ function planScreen() {
     <button class="btn small" data-action="watch">Alert me</button>
     <button class="btn small secondary" data-action="csv">Download CSV</button>
   </div>
-  <p class="notice" style="margin-top:10px">Links open ${esc(providerFor(r.platform).label)} with the date and party filled in; live times are shown there. This app never books or holds tables.</p>`;
+  <p class="notice" style="margin-top:10px">${r.reservable === false ? 'Google lists no online reservations for this restaurant.' : `Check opens ${esc(providerFor(r.platform).label)} with the date and party filled in; live times are shown there.`} The map pin opens Google Maps, where "Reserve a table" may show more times (pick the date there). This app never books or holds tables.</p>`;
 }
 
 function slotRow(s) {
@@ -156,9 +160,12 @@ function slotRow(s) {
   let cls = s.status, title, sub, cta = 'Check';
   if (s.busy && state.query.onlyFree) {
     cls = 'busy'; title = "You're busy"; sub = `Calendar: ${s.busyTitle || 'event'}`; cta = 'Link';
+  } else if (s.noOnline) {
+    cls = 'unknown'; title = 'No online booking';
+    sub = `${s.mealLabel} ${s.start}–${s.end} · call or walk in`;
   } else if (s.status === 'bookable') {
     title = state.query.meals.length > 1 ? `${s.mealLabel} · bookable now` : 'Bookable now';
-    sub = `Tap to see live times ${s.start}–${s.end}`;
+    sub = `Live times ${s.start}–${s.end}`;
   } else if (s.status === 'opens') {
     title = `Opens ${shortDateTime(s.opensAt)}${s.opensEstimated ? '*' : ''}`;
     sub = `${s.mealLabel} ${s.start}–${s.end}${s.opensEstimated ? ' · *time estimated' : ''}`;
@@ -171,6 +178,7 @@ function slotRow(s) {
   return `<div class="slot ${cls}">
     <div class="day"><small>${DOW_SHORT[s.dow]}</small><b>${Number(dd)}</b></div>
     <div class="what"><b>${esc(title)}</b><span>${esc(sub)}</span></div>
+    ${s.googleLink ? `<a class="g-btn" href="${esc(s.googleLink)}" target="_blank" rel="noopener noreferrer" aria-label="See ${esc(state.restaurant.name)} on Google Maps" title="See on Google Maps"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg></a>` : ''}
     ${s.link ? `<a class="go-btn" href="${esc(s.link)}" target="_blank" rel="noopener noreferrer">${cta}</a>` : ''}
   </div>`;
 }

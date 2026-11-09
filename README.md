@@ -7,7 +7,10 @@ it lists every candidate date with:
 
 - **Bookable now**, **Opens <date> 00:00**, or **Release unknown**
 - a one-tap link to the booking page, with the date, time and party size filled in
+- a **map pin** that opens the restaurant on Google Maps, where "Reserve a table"
+  can show Google's own slot picker (often covering several booking platforms)
 - whether you're **busy** that evening (from your calendar feed)
+- a **"Takes bookings online" / "No online booking"** flag from Google Places
 
 It also sends an **alert just after each new date opens** (push, email or webhook).
 
@@ -38,7 +41,7 @@ anything that reads availability directly.
 | Calendar feed reader (recurring events, exceptions, free/busy) | `public/shared/ics.js` |
 | CSV export | `public/shared/csv.js` |
 | Restaurant research (Claude + web search) and source validation | `src/research.js`, `src/profile.js` |
-| Google Places search and opening hours (optional) | `src/places.js` |
+| Google Places search, opening hours and the online-booking flag (optional; matched automatically by name) | `src/places.js` |
 | Alert channels (ntfy push, Resend email, webhook) | `src/channels.js` |
 | API, storage (Cloudflare KV), hourly alert job | `src/worker.js` |
 | iPhone web app (4 screens) | `public/index.html`, `app.js`, `styles.css` |
@@ -132,6 +135,11 @@ validation (a made-up source is rejected), the API, and release alerts
   ([pricing](https://developers.google.com/maps/billing-and-pricing/pricing)).
 
 ## Limits and next steps
+
+- Google Maps can't be read automatically: its availability comes from booking
+  platforms' partner feeds, the public Places API only says whether a place takes
+  reservations, and Google's terms forbid scraping. The map pin just opens the page
+  for you, and Google links can't pre-set a date.
 
 - The app can't see *live* free times or cancellations. For those, use the
   platform's own **Notify me** feature; reading those emails from your inbox

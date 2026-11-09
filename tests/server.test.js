@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { handleApi, runAlerts, store } from '../src/worker.js';
 import { researchRestaurant, RESEARCH_MODEL } from '../src/research.js';
 import { normaliseProfile, searchedUrls, extractJson, finalText } from '../src/profile.js';
-import { mapPlace, periodsToHours, mergePlace } from '../src/places.js';
+import { mapPlace, periodsToHours, mergePlace, bestMatch } from '../src/places.js';
 import { notify } from '../src/channels.js';
 
 const fixture = (f) => readFileSync(new URL(`./fixtures/${f}`, import.meta.url), 'utf8');
@@ -155,4 +155,35 @@ test('Google Places mapping and merge', () => {
   const merged = mergePlace({ ...bouchon(), hours: null }, place);
   assert.equal(merged.hours.complete, true);
   assert.equal(merged.hours.source, 'google');
+});
+
+test('Places: booking flag carried onto the profile', () => {
+  const place = mapPlace(JSON.parse(fixture('places-search.json')).places[0]);
+  const yes = mergePlace(bouchon(), place);
+  assert.equal(yes.reservable, true);
+  assert.equal(yes.placeId, 'ChIJ-test-place-id');
+  assert.equal(yes.facts.find((f) => f.label === 'Online booking').value, 'Takes reservations (Google)');
+  const no = mergePlace(bouchon(), { ...place, reservable: false });
+  assert.equal(no.reservable, false);
+  assert.ok(no.facts.filter((f) => f.label === 'Online booking').length === 1);
+  const unknown = mergePlace(bouchon(), { ...place, reservable: null });
+  assert.equal(unknown.reservable, undefined);
+});
+
+test('Places: only a clear name match is used', () => {
+  const results = [{ name: 'Racine Bar' }, { name: 'Bouchon Racine' }];
+  assert.equal(bestMatch('bouchon racine', results).name, 'Bouchon Racine');
+  assert.equal(bestMatch('Bouchon Racine', [{ name: 'Bouchon' }]).name, 'Bouchon'); // prefix
+  assert.equal(bestMatch('Bouchon Racine', [{ name: 'Le Petit Bouchon' }]), null);
+  assert.equal(bestMatch('', results), null);
+});
+
+test('research looks the restaurant up on Google automatically', async () => {
+  const e = env({ GOOGLE_PLACES_API_KEY: 'g-test' });
+  const places = { places: [{ id: 'ChIJ-br', displayName: { text: 'Bouchon Racine' }, formattedAddress: '66 Cowcross St, London', reservable: true }] };
+  const fetchStub = async (url) => (String(url).includes('places.googleapis.com') ? Response.json(places) : new Response('', { status: 404 }));
+  const res = await (await handleApi(req('/api/research', { method: 'POST', body: { name: 'Bouchon Racine' } }), e,
+    { fetch: fetchStub, research: async () => bouchon() })).json();
+  assert.equal(res.restaurant.placeId, 'ChIJ-br');
+  assert.equal(res.restaurant.reservable, true);
 });
