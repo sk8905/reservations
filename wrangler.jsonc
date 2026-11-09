@@ -10,8 +10,8 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
-  // Create with: npx wrangler kv namespace create PLANNER  — then paste the id here.
-  "kv_namespaces": [{ "binding": "PLANNER", "id": "REPLACE_WITH_KV_NAMESPACE_ID" }],
+  // No id needed: Cloudflare creates this storage automatically on the first deploy.
+  "kv_namespaces": [{ "binding": "PLANNER" }],
   // Hourly at :01 — catches midnight UK releases in both GMT and BST.
   "triggers": { "crons": ["1 * * * *"] },
   "observability": { "enabled": true }

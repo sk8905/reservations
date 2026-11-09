@@ -312,7 +312,7 @@ function tokenScreen() {
   const c = state.config;
   return `<div class="head"><span class="eyebrow">Table Planner</span><h1>Access token</h1></div>
   <form class="stack" data-form="token">
-    <div class="sub">${c && !c.tokenConfigured ? 'The server has no APP_TOKEN secret yet. Set one with <span class="mono">wrangler secret put APP_TOKEN</span> (see README).' : 'Enter the APP_TOKEN you set when deploying. It is stored on this device only.'}</div>
+    <div class="sub">${c && !c.tokenConfigured ? 'The app has no APP_TOKEN yet. In Cloudflare: table-planner → Settings → Variables and Secrets → Add → Type: Secret, name APP_TOKEN (see SETUP.md).' : 'Enter the APP_TOKEN you set when deploying. It is stored on this device only.'}</div>
     <label class="field"><span class="sr">Token</span><input name="token" type="password" autocomplete="current-password" value=""></label>
     <button class="btn">Save</button>
   </form>`;

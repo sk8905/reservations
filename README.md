@@ -58,29 +58,17 @@ better, tap **Correct it**: your correction wins and survives re-checks.
 
 ## Setup
 
-Needs Node 20+ and a free [Cloudflare account](https://dash.cloudflare.com/sign-up).
+**Browser only: follow [SETUP.md](SETUP.md).** Cloudflare imports this GitHub
+repo, builds it and publishes it, and redeploys on every push to `main`. The
+Worker must be named `table-planner`. The KV storage is created automatically
+on the first deploy, so no id is needed.
 
-```bash
-npm install
-```
-
-```bash
-npx wrangler login
-```
-
-```bash
-npx wrangler kv namespace create PLANNER
-```
-
-Paste the printed `id` into `wrangler.jsonc` (replace `REPLACE_WITH_KV_NAMESPACE_ID`).
-
-### Secrets
-
-Set each with `npx wrangler secret put <NAME>`:
+Secrets are added in Cloudflare under **table-planner → Settings → Variables
+and Secrets** (always Type: **Secret**):
 
 | Secret | Needed for | Where to get it |
 |---|---|---|
-| `APP_TOKEN` | **Required.** Any long random string; you type it into the app once | e.g. `openssl rand -hex 24` |
+| `APP_TOKEN` | **Required.** Any long random string; you type it into the app once | Your password manager's generator (30+ characters) |
 | `ANTHROPIC_API_KEY` | Researching new restaurants | [Claude Console](https://platform.claude.com/) |
 | `GOOGLE_PLACES_API_KEY` | Optional: search suggestions + full opening hours | [Places API (New)](https://developers.google.com/maps/documentation/places/web-service/text-search) |
 | `CALENDAR_ICS_URL` | Optional: "only dates I'm free" | Google Calendar → Settings → your calendar → **Secret address in iCal format** ([help](https://support.google.com/calendar/answer/37648)) |
@@ -88,17 +76,13 @@ Set each with `npx wrangler secret put <NAME>`:
 | `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` | Optional: email alerts | [Resend](https://resend.com) |
 | `ALERT_WEBHOOK_URL` | Optional: POSTs `{title, body, url}` | Your own endpoint |
 
-### Deploy
-
-```bash
-npm run deploy
-```
-
-Open the `*.workers.dev` URL on your iPhone, enter your `APP_TOKEN`, then
-Share → **Add to Home Screen**. For an extra lock, put the app behind
+For an extra lock, put the app behind
 [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/applications/configure-apps/self-hosted-public-app/).
 
-## Run locally
+Developers can also deploy from a terminal: `npm install`, then `npx wrangler deploy`
+and `npx wrangler secret put <NAME>`.
+
+## Run locally (developers)
 
 ```bash
 cp .dev.vars.example .dev.vars

@@ -206,7 +206,7 @@ export async function handleApi(request, env, deps = {}) {
       channels: ok ? CHANNELS.map((c) => ({ name: c.name, label: c.label, enabled: c.enabled(env) })) : null,
     });
   }
-  if (!env.APP_TOKEN) return fail(503, 'Set the APP_TOKEN secret to use the app.');
+  if (!env.APP_TOKEN) return fail(503, 'Set the APP_TOKEN secret in Cloudflare (Settings → Variables and Secrets) to use the app.');
   if (!authorised(request, env)) return fail(401, 'Access token required.');
 
   try {
