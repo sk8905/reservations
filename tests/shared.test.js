@@ -167,3 +167,15 @@ test('no online booking: slots keep the Google link but drop the booking link', 
   assert.ok(slot.googleLink);
   assert.match(slotsToCsv([slot]), /No online booking/);
 });
+
+test('platform needs a cited page on that platform, not just a mention', () => {
+  const allowed = new Map([['https://awards.example/winners-2026', 'Awards sponsored by SevenRooms'], ['https://www.opentable.co.uk/r/x-london', 'x london']]);
+  const mention = normaliseProfile({ name: 'X', platform: { value: 'sevenrooms', booking_url: null, sources: ['https://awards.example/winners-2026'] } }, allowed, { name: 'X' });
+  assert.equal(mention.platform, null);
+  const wrongUrl = normaliseProfile({ name: 'X', platform: { value: 'sevenrooms', booking_url: 'https://www.sevenrooms.com/reservations/x', sources: ['https://awards.example/winners-2026'] } }, allowed, { name: 'X' });
+  assert.equal(wrongUrl.platform, null);
+  assert.equal(wrongUrl.bookingUrl, null);
+  const ok = normaliseProfile({ name: 'X', platform: { value: 'opentable', booking_url: 'https://www.opentable.co.uk/r/x-london', sources: ['https://awards.example/winners-2026', 'https://www.opentable.co.uk/r/x-london'] } }, allowed, { name: 'X' });
+  assert.equal(ok.platform, 'opentable');
+  assert.deepEqual(ok.facts.find((f) => f.label === 'Platform').sources.map((s) => s.title), ['x london']);
+});

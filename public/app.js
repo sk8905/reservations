@@ -79,7 +79,7 @@ function setupScreen() {
       </label>
     </div>
     <label class="card toggle">
-      <span><b style="font-size:14px">Only dates I'm free</b><br><span class="sub">${feats.calendar ? 'Checks your calendar feed' : 'Add a calendar feed to use this (see README)'}</span></span>
+      <span><b style="font-size:14px">Only dates I'm free</b><br><span class="sub">${feats.calendar ? 'Checks your calendar feed' : 'Add a calendar feed to use this (SETUP.md, step B2)'}</span></span>
       <input type="checkbox" data-input="onlyFree" ${q.onlyFree && feats.calendar ? 'checked' : ''} ${feats.calendar ? '' : 'disabled'}>
     </label>
     <a class="btn" href="#/plan" ${r ? '' : 'aria-disabled="true" data-action="need-restaurant"'}>Show my dates</a>

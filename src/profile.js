@@ -10,7 +10,6 @@
 
 import { detectPlatform, providerFor } from '../public/shared/links.js';
 
-const PLATFORMS = new Set(['opentable', 'resy', 'sevenrooms', 'tock', 'designmynight', 'other']);
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
@@ -112,11 +111,18 @@ export function normaliseProfile(json, allowed, { name, city, now = Date.now() }
   const websiteSrc = keepSources(j.website?.sources, allowed);
   const website = websiteSrc.length && typeof j.website?.value === 'string' ? j.website.value : null;
 
-  const platSrc = keepSources(j.platform?.sources, allowed);
-  let bookingUrl = platSrc.length && typeof j.platform?.booking_url === 'string' ? j.platform.booking_url : null;
-  let platform = bookingUrl ? detectPlatform(bookingUrl) : null;
-  if (!platform && platSrc.length && PLATFORMS.has(j.platform?.value)) platform = j.platform.value;
-  if (bookingUrl && !/^https:\/\//.test(bookingUrl)) { bookingUrl = null; platform = null; }
+  // The platform only counts if a cited page is ON that platform (e.g. the
+  // restaurant's OpenTable listing). A page that merely mentions a platform,
+  // such as an award sponsored by SevenRooms, is not enough.
+  let platSrc = keepSources(j.platform?.sources, allowed);
+  let bookingUrl = typeof j.platform?.booking_url === 'string' && /^https:\/\//.test(j.platform.booking_url) ? j.platform.booking_url : null;
+  let platform = null;
+  if (bookingUrl) {
+    const bh = host(bookingUrl);
+    const onPlatform = platSrc.filter((s) => host(s.url) === bh);
+    const key = detectPlatform(bookingUrl);
+    if (onPlatform.length && key !== 'other') { platform = key; platSrc = onPlatform; } else bookingUrl = null;
+  }
 
   const official = new Set([host(website), host(bookingUrl)].filter(Boolean));
   const conf = (s) => confidence(s, official);
